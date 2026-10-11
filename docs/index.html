@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bili-transcript — 提取 B 站视频文字稿</title>
+<meta name="description" content="把 B 站视频的字幕、文字稿和 AI 总结扒下来。零依赖，扫码登录，纯命令行。">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --dim: #6b6b6b;
+    --line: #e5e5e5;
+    --code-bg: #f6f6f6;
+    --accent: #fb7299;
+    --accent-soft: rgba(251, 114, 153, 0.10);
+    --accent-frame: rgba(251, 114, 153, 0.35);
+    --ok: #2ea043;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0e10;
+      --fg: #e8e8e8;
+      --dim: #9a9a9a;
+      --line: #2a2a2e;
+      --code-bg: #1a1a1d;
+      --accent: #fb7299;
+      --accent-soft: rgba(251, 114, 153, 0.14);
+      --accent-frame: rgba(251, 114, 153, 0.42);
+      --ok: #3fb950;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    padding: 0 20px 80px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 700px; margin: 0 auto; }
+
+  header { padding: 56px 0 8px; }
+  h1 {
+    font-size: 34px; line-height: 1.25; margin: 0 0 12px;
+    letter-spacing: -0.02em; font-weight: 700;
+  }
+  h1 .mark { color: var(--accent); }
+  .lede { font-size: 18px; color: var(--dim); margin: 0 0 4px; }
+
+  h2 {
+    font-size: 19px; margin: 44px 0 12px; font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  h2::before {
+    content: ""; display: inline-block; width: 3px; height: 15px;
+    background: var(--accent); border-radius: 2px;
+    margin-right: 9px; vertical-align: -1px;
+  }
+  p { margin: 0 0 14px; }
+  .dim { color: var(--dim); }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.65;
+    margin: 0 0 16px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  .c { color: var(--dim); }
+  .k { color: var(--accent); font-weight: 600; }
+
+  .install {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-frame);
+    border-radius: 12px;
+    padding: 18px 18px 6px;
+    margin: 22px 0 8px;
+  }
+  .install pre { background: var(--bg); margin-bottom: 14px; }
+
+  ul { margin: 0 0 16px; padding-left: 0; list-style: none; }
+  li { margin-bottom: 9px; padding-left: 22px; position: relative; }
+  li::before {
+    content: ""; position: absolute; left: 6px; top: 11px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  }
+
+  .note {
+    border-left: 3px solid var(--ok);
+    background: var(--code-bg);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 0 0 16px;
+    font-size: 14.5px;
+  }
+  .warn { border-left-color: #d29922; }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 0 0 16px; font-size: 14.5px;
+  }
+  th, td {
+    text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th { color: var(--dim); font-weight: 600; font-size: 13px; }
+  td:first-child { white-space: nowrap; }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  footer {
+    margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 14px;
+  }
+  footer a { margin-right: 18px; }
+
+  @media (max-width: 480px) {
+    header { padding-top: 34px; }
+    h1 { font-size: 27px; }
+    .lede { font-size: 16.5px; }
+    pre { font-size: 12.5px; padding: 12px 13px; }
+    table { font-size: 13.5px; }
+    td:first-child { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>把 B 站视频<br>变成<span class="mark">能读的文字</span></h1>
+  <p class="lede">字幕、文字稿、AI 总结，一条命令拿走。</p>
+  <p class="lede">零依赖 · 扫码登录 · 纯命令行</p>
+</header>
+
+<div class="install">
+<pre><code><span class="k">npx</span> bili-transcript BV1xx411c7mD --plain</code></pre>
+<p class="dim" style="font-size:14px;margin-bottom:14px">
+  或者全局装：<code>npm i -g bili-transcript</code>　只需 Node 18+，装完不到 100 KB。
+</p>
+</div>
+
+<h2>它能做什么</h2>
+<ul>
+  <li>把任意 B 站视频的字幕扒成文字，<b>要不要时间戳都行</b></li>
+  <li>拿 B 站官方的 <b>AI 视频总结</b>，带章节和时间点</li>
+  <li>BV 号、av 号、完整链接、<b>b23.tv 短链</b>都认</li>
+  <li>合集视频可以只取某一集（分P）</li>
+  <li>给 agent 用的 <code>--json</code> 结构化输出</li>
+</ul>
+
+<h2>三步开始</h2>
+<pre><code><span class="c"># 1. 登一次，以后不用再登</span>
+bili login
+
+<span class="c"># 2. 提取文字稿</span>
+bili BV1xx411c7mD --plain
+
+<span class="c"># 3. 长视频写进文件再看</span>
+bili "https://b23.tv/xxxxx" --plain -o out.txt</code></pre>
+<p class="dim">出问题了先跑 <code>bili doctor</code>，它会告诉你是接口变了还是该重新登录了。</p>
+
+<h2>为什么要登录</h2>
+<p>
+  B 站的字幕接口现在<b>强制登录</b>。不登的话接口返回的是空数组——看起来像"这视频没字幕"，
+  其实是被挡住了。所以得先登一次，躲不过去。
+</p>
+<div class="note">
+  <b>登录全程在你自己的机器上完成。</b><br>
+  扫码用的是 B 站官方的二维码登录接口（就是网页版"扫码登录"用的那个），
+  不经过任何第三方服务器。凭据存在 <code>~/.config/bili/auth.json</code>，权限 <code>0600</code>。
+</div>
+<p>
+  另外：扫码登录<b>不会把你手机上的 B 站 App 踢下线</b>——同一个账号支持多端同时在线。
+  实测过，手机上照常用。
+</p>
+
+<h2>命令一览</h2>
+<table>
+  <tr><th>命令</th><th>作用</th></tr>
+  <tr><td><code>bili &lt;目标&gt;</code></td><td>提取文字稿（默认动作）</td></tr>
+  <tr><td><code>bili login</code></td><td>扫码登录</td></tr>
+  <tr><td><code>bili doctor</code></td><td>自检：环境 / 凭据 / 接口</td></tr>
+  <tr><td><code>bili install-skill</code></td><td>装到本地 agent</td></tr>
+</table>
+
+<h2>提取选项</h2>
+<table>
+  <tr><th>选项</th><th>作用</th></tr>
+  <tr><td><code>--plain</code></td><td>只出连续文字，不带时间戳</td></tr>
+  <tr><td><code>--json</code></td><td>结构化输出，给程序或 agent 解析</td></tr>
+  <tr><td><code>-p N</code></td><td>取第 N 个分P</td></tr>
+  <tr><td><code>--list</code></td><td>只列出字幕轨</td></tr>
+  <tr><td><code>--summary</code></td><td>附带 B 站 AI 总结</td></tr>
+  <tr><td><code>-o FILE</code></td><td>写入文件</td></tr>
+</table>
+
+<h2>给 agent 用</h2>
+<pre><code><span class="k">npx</span> skills add dongliang/bili-transcript</code></pre>
+<p>
+  装了之后，Claude Code、Codex 这类 agent 会在你说"这个视频讲了什么"的时候自己调用它。
+  agent 内部用 <code>--json</code> 拿结构化数据：
+</p>
+<pre><code>{
+  <span class="k">"ok"</span>: true,
+  <span class="k">"bvid"</span>: "BV14Z4R6KEHS",
+  <span class="k">"title"</span>: "128G 超大内存，密密麻麻全是颗粒",
+  <span class="k">"duration"</span>: 175,
+  <span class="k">"uploader"</span>: "韩宇修机",
+  <span class="k">"lines"</span>: [
+    { <span class="k">"from"</span>: 0, <span class="k">"to"</span>: 1.96, <span class="k">"text"</span>: "128G大内存" }
+  ]
+}</code></pre>
+
+<h2>已知限制</h2>
+<div class="note warn">
+  <b>字幕是 AI 自动生成的，会有错别字。</b><br>
+  实测中 <code>CAMM</code> 被写成 "cam"、<code>信号线阻值</code> 被写成 "信号线组织"、
+  <code>焊球</code> 被写成 "气球"。<b>专有名词请核实物件丝印或官方资料再引用。</b>
+</div>
+<ul>
+  <li>没有字幕轨的视频（纯音乐、MV、CG 常见）拿不到文字——它会明确告诉你，而不是编一段给你</li>
+  <li>只支持 B 站，其他平台是另一件事</li>
+  <li>登录会过期（通常几个月），<code>doctor</code> 会提前告诉你</li>
+</ul>
+
+<h2>两个刻意的设计</h2>
+<p>
+  <b>零依赖。</b> 核心只用 Node 内置的 <code>fetch</code>、<code>crypto</code>、<code>fs</code>。
+  连二维码都是自己实现的（GF(256) 纠错、Reed-Solomon、掩码择优，PNG 也是手写的）——
+  代价是 13 KB 代码，换来整包不到 100 KB，而且没有供应链风险。
+</p>
+<p>
+  <b>绝不返回错误数据。</b> 有个旧接口会返回<b>别的视频</b>的字幕——对一条无字幕的 MV 连测 4 次，
+  拿到 4 段完全无关的内容。这种错用户看不出来，只会觉得字幕莫名其妙。
+  所以工具宁可报"没有字幕"，也不回退到那个接口。拿到字幕后还会校验末条时间戳贴不贴合视频时长，
+  不贴合就告警。
+</p>
+
+<footer>
+  <a href="https://github.com/dongliang/bili-transcript">GitHub</a>
+  <a href="https://www.npmjs.com/package/bili-transcript">npm</a>
+  <span>MIT License</span>
+</footer>
+
+</div>
+</body>
+</html>
