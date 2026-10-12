@@ -23,6 +23,17 @@ npx bili-transcript <目标>          # 或者直接用，不装
 
 需要 **Node 18+**（用到内置 fetch）。没有其他依赖，一条 `npm i` 装完不到 100 KB。
 
+装好后有两个等价的命令：**`bili-transcript`**（全名）和 **`bili`**（简写）。
+
+> 全局安装报 `EACCES: permission denied, mkdir '/usr/lib/node_modules/...'`？
+> 那是 npm 想往系统目录写。别用 sudo，改成装到自己的目录：
+> ```sh
+> npm config set prefix ~/.local
+> npm install -g bili-transcript
+> ```
+> 再把 `~/.local/bin` 加进 PATH（fish：`fish_add_path ~/.local/bin`）。
+> 或者干脆不装，用 `npx`。
+
 ## 快速开始
 
 ```sh

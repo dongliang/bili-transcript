@@ -1,0 +1,73 @@
+name: CI & Publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------- 1. 检查：不需要凭据，不联网 ----------
+  check:
+    name: 冒烟测试
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: 跑冒烟测试
+        run: node tests/ci-check.mjs
+
+  # ---------- 2. 发布：只有版本号是新的才发 ----------
+  publish:
+    name: 发布到 npm
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write        # 用于 npm provenance 签名
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: 检查这个版本是否已发布
+        id: v
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          echo "name=$NAME"  >> "$GITHUB_OUTPUT"
+          echo "ver=$VER"    >> "$GITHUB_OUTPUT"
+          if npm view "$NAME@$VER" version >/dev/null 2>&1; then
+            echo "exists=true"  >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VER 已存在，跳过发布"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::准备发布 $NAME@$VER"
+          fi
+
+      - name: 发布
+        if: steps.v.outputs.exists == 'false'
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: 发布后验证（从 registry 装下来跑一遍）
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          cd /tmp
+          rm -rf verify && mkdir verify && cd verify
+          npm install "${{ steps.v.outputs.name }}@${{ steps.v.outputs.ver }}"
+          ./node_modules/.bin/bili-transcript --version
+          echo "✅ 从 registry 安装并运行成功"

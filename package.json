@@ -1,9 +1,10 @@
 {
   "name": "bili-transcript",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "提取 B 站视频的文字稿、字幕和 AI 总结。零依赖，扫码登录，纯命令行。",
   "type": "module",
   "bin": {
+    "bili-transcript": "src/cli.mjs",
     "bili": "src/cli.mjs"
   },
   "files": [
@@ -36,8 +37,8 @@
     "url": "https://github.com/dongliang/bili-transcript/issues"
   },
   "scripts": {
-    "test": "sh tests/fulltest.sh",
-    "selftest": "node src/selftest.mjs"
+    "test": "node tests/ci-check.mjs",
+    "doctor": "node src/cli.mjs doctor"
   },
   "dependencies": {},
   "optionalDependencies": {}

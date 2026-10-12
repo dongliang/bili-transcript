@@ -7,13 +7,24 @@
 //   bili doctor                    自检
 //   bili install-skill [选项]      把 skill 装到本地 agent
 //
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fetchVideo, renderText } from './fetch.mjs';
 import { login } from './login.mjs';
 import { BiliError } from './api.mjs';
 
+// 版本号从 package.json 读，避免写死后漂移
+const VERSION = (() => {
+  try {
+    const p = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+    return JSON.parse(readFileSync(p, 'utf8')).version;
+  } catch { return 'unknown'; }
+})();
+
 const HELP = `
-bili —— B 站视频文字稿提取
+bili-transcript —— B 站视频文字稿提取
+（命令名 bili-transcript，简写 bili，两者等价）
 
 用法
   bili <BV号|av号|URL> [选项]     提取文字稿
@@ -87,7 +98,7 @@ async function main() {
   }
   const o = parseArgs(rest);
   if (o.help) { console.log(HELP); return; }
-  if (o.version) { console.log(process.env.npm_package_version || '1.0.0'); return; }
+  if (o.version) { console.log(VERSION); return; }
 
   // ---- login ----
   if (cmd === 'login') {
