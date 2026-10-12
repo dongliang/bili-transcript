@@ -87,8 +87,11 @@ try {
 console.log('\n== 干净度 ==');
 !existsSync(join(ROOT, 'node_modules')) ? ok('没有 node_modules') : no('存在 node_modules，不该提交');
 try {
-  const out = execFileSync('git', ['grep', '-lIE', 'npm_[A-Za-z0-9]{20,}|_authToken|SESSDATA=[A-Za-z0-9%]{20,}',
-                                  '--', '.'], { cwd: ROOT, encoding: 'utf8' });
+  // 注意：必须排除本文件，否则「检测凭据的正则」会匹配到它自己的源码
+  const out = execFileSync('git',
+    ['grep', '-lIE', 'npm_[A-Za-z0-9]{20,}|_authToken|SESSDATA=[A-Za-z0-9%]{20,}',
+     '--', '.', ':(exclude)tests/ci-check.mjs', ':(exclude)node_modules'],
+    { cwd: ROOT, encoding: 'utf8' });
   no(`发现疑似凭据：${out.trim()}`);
 } catch { ok('仓库里没有 token / 凭据'); }
 
