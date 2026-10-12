@@ -66,8 +66,26 @@ jobs:
       - name: 发布后验证（从 registry 装下来跑一遍）
         if: steps.v.outputs.exists == 'false'
         run: |
-          cd /tmp
-          rm -rf verify && mkdir verify && cd verify
-          npm install "${{ steps.v.outputs.name }}@${{ steps.v.outputs.ver }}"
+          NAME="${{ steps.v.outputs.name }}"
+          VER="${{ steps.v.outputs.ver }}"
+          # registry 有传播延迟，刚发完立刻装会 ETARGET，必须轮询等待
+          echo "等待 $NAME@$VER 在 registry 生效…"
+          for i in $(seq 1 30); do
+            if npm view "$NAME@$VER" version >/dev/null 2>&1; then
+              echo "  第 $i 次查询：已生效"
+              break
+            fi
+            echo "  第 $i 次查询：还没生效，等 10 秒"
+            sleep 10
+          done
+          if ! npm view "$NAME@$VER" version >/dev/null 2>&1; then
+            echo "::error::$NAME@$VER 在 5 分钟后仍未出现在 registry"
+            exit 1
+          fi
+
+          cd /tmp && rm -rf verify && mkdir verify && cd verify
+          npm install "$NAME@$VER"
+          echo "--- 命令名检查 ---"
           ./node_modules/.bin/bili-transcript --version
-          echo "✅ 从 registry 安装并运行成功"
+          ./node_modules/.bin/bili --version
+          echo "✅ 从 registry 安装并运行成功（两个命令名都可用）"

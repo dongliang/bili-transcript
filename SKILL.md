@@ -15,6 +15,8 @@ bili <目标> -o out.txt              # 长视频务必写文件
 bili <目标> --json                  # 给程序解析
 ```
 
+> 命令名 **`bili-transcript`** 和 **`bili`** 等价，随便用哪个。没装的话用 `npx bili-transcript`。
+
 | 选项 | 作用 |
 |---|---|
 | `--plain` | 只出连续文字，不带时间戳。**给 AI 读、给人读都用这个** |
