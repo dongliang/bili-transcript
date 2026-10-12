@@ -69,8 +69,9 @@ jobs:
           NAME="${{ steps.v.outputs.name }}"
           VER="${{ steps.v.outputs.ver }}"
           # registry 有传播延迟，刚发完立刻装会 ETARGET，必须轮询等待
+          # registry 有传播延迟，实测最长约 3 分钟，这里给到 10 分钟
           echo "等待 $NAME@$VER 在 registry 生效…"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if npm view "$NAME@$VER" version >/dev/null 2>&1; then
               echo "  第 $i 次查询：已生效"
               break
@@ -79,7 +80,7 @@ jobs:
             sleep 10
           done
           if ! npm view "$NAME@$VER" version >/dev/null 2>&1; then
-            echo "::error::$NAME@$VER 在 5 分钟后仍未出现在 registry"
+            echo "::error::$NAME@$VER 在 10 分钟后仍未出现在 registry"
             exit 1
           fi
 
