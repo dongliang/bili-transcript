@@ -1,6 +1,6 @@
 {
   "name": "bili-transcript",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "提取 B 站视频的文字稿、字幕和 AI 总结。零依赖，扫码登录，纯命令行。",
   "type": "module",
   "bin": {
