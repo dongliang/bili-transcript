@@ -22,7 +22,7 @@ export async function installSkill({ global: isGlobal = true } = {}) {
 
   // 1) 首选：npx skills add（走官方生态，兼容性最好）
   log('尝试 `npx skills add` …');
-  const r = spawnSync('npx', ['-y', 'skills@latest', 'add', 'dongliang/bili-transcript',
+  const r = spawnSync('npx', ['-y', 'skills@latest', 'add', 'dongliang/skills', '--skill', 'bilibili-transcript',
                               isGlobal ? '-g' : '-p', '-y'],
                       { stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status === 0) {
