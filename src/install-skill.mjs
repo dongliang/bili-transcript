@@ -1,7 +1,7 @@
 // 安装 agent skill —— 首选 npx skills add，失败则自己往已知目录写
 import { existsSync, mkdirSync, copyFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -15,7 +15,37 @@ const KNOWN_DIRS = [
   '~/.codex/skills',
   '~/.config/agent-skills',
   '~/.agents/skills',
+  '~/.codebuddy/skills',
+  '~/.zcode/skills',
 ];
+
+/**
+ * 只装了 skill、PATH 里却没有 bili 时补上。
+ * 典型场景：`npx bili-transcript install-skill` —— skill 装好了，但 CLI 只在临时目录里，
+ * agent 之后调 `bili` 会找不到命令。
+ */
+function ensureCli(log) {
+  const onPath = (process.env.PATH || '')
+    .split(delimiter)
+    .some((p) => p && existsSync(join(p, 'bili')));
+  if (onPath) {
+    log('  ✅ bili 已在 PATH 里');
+    return true;
+  }
+
+  log('  没在 PATH 里找到 bili，自动安装…');
+  const r = spawnSync('npm', ['i', '-g', 'bili-transcript'], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  if (r.status === 0) {
+    log('  ✅ 已全局安装 bili-transcript');
+    return true;
+  }
+  log('  ❌ 自动安装失败。手动装：npm i -g bili-transcript');
+  log('     报 EACCES 时先 npm config set prefix ~/.local，再把 ~/.local/bin 加进 PATH');
+  return false;
+}
 
 export async function installSkill({ global: isGlobal = true } = {}) {
   const log = console.log;
@@ -27,6 +57,7 @@ export async function installSkill({ global: isGlobal = true } = {}) {
                       { stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status === 0) {
     log('\n✅ 已通过 npx skills 安装。');
+    ensureCli(log);
     return true;
   }
 
@@ -59,5 +90,6 @@ export async function installSkill({ global: isGlobal = true } = {}) {
   }
 
   log('\n注意：降级安装只放 SKILL.md，agent 需要能通过 `npx bili-transcript` 调用工具。');
+  ensureCli(log);
   return true;
 }

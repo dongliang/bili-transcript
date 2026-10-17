@@ -7,7 +7,7 @@
 //   bili doctor                    自检
 //   bili install-skill [选项]      把 skill 装到本地 agent
 //
-import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { spawn } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -101,6 +101,28 @@ function die(msg, code = 1) {
 
 // 二维码别放 /tmp：扫一下就能登录，全局可读的目录等于把凭据晾给别人看
 const QR_PNG = join(homedir(), '.config', 'bili', 'qr.png');
+
+// 装过 skill 的 agent 目录（与 install-skill.mjs 的 KNOWN_DIRS 对齐）
+const SKILL_DIRS = [
+  '.claude/skills', '.codex/skills', '.agents/skills',
+  '.config/agent-skills', '.codebuddy/skills', '.zcode/skills',
+];
+const HINT_MARK = join(homedir(), '.config', 'bili', 'skill-hint-shown');
+
+/**
+ * 没装 skill 时提示一句「bili install-skill」。
+ * 只提示一次（留标记），非 TTY 不打扰 —— agent 调 CLI 时看到这行纯属噪音。
+ */
+function maybeHintSkill() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY || process.env.BILI_NO_PROMPT) return;
+  if (SKILL_DIRS.some((d) => existsSync(join(homedir(), d, 'bilibili-transcript')))) return;
+  if (existsSync(HINT_MARK)) return;
+  console.error('\n提示：没检测到已安装的 agent skill。装一下，以后这类请求会自动走它：\n  bili install-skill');
+  try {
+    mkdirSync(dirname(HINT_MARK), { recursive: true });
+    writeFileSync(HINT_MARK, '');
+  } catch { /* 写不了标记就算了，最多多提示几次 */ }
+}
 
 /** 打开默认浏览器。起不来返回 false，由调用方打印 URL 兜底，不报错退出 */
 function openBrowser(url) {
@@ -284,6 +306,8 @@ async function main() {
   } else {
     process.stdout.write(text);
   }
+
+  maybeHintSkill();
 }
 
 main().catch((e) => die(e.stack || String(e)));

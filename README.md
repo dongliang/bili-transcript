@@ -52,6 +52,19 @@ B 站的字幕接口现在强制登录。不登录的话，接口返回的是**�
 
 扫码登录**不会把你手机上的 B 站 App 踢下线**——同一个账号支持多端同时在线。
 
+### 凭据从哪来（多数时候不用扫码）
+
+按顺序自动找，不用你操心：
+
+1. 环境变量 `BILI_SESSDATA`
+2. `~/.config/bili/auth.json`（`bili login` 写的位置）
+3. **本机浏览器的 cookie 库**（只读，每次现取）
+4. `/var/minis/offloads/env_cookies_bilibili*.sh`（Minis 里导出的 cookie）
+
+第 3 级覆盖 Firefox（明文，零解密）和 Chrome / Chromium / Edge / Brave / Vivaldi / Opera（AES-128-CBC + 桌面密钥环）。你日常开着浏览器，多半这一级就命中了——**浏览器里登录着 B 站就不用扫码**。`bili doctor` 会告诉你凭据实际取自哪一级。
+
+浏览器那级是**只读、不落盘**的：只认 bilibili 域名下的 5 个白名单字段，不打印值，绝不写浏览器文件。不想要这一级就设 `BILI_NO_BROWSER=1`。
+
 ## 命令
 
 ```
@@ -119,6 +132,36 @@ agent 内部请用 `--json` 拿结构化数据：
 **只用 `x/player/wbi/v2` 拿字幕，不回退到旧接口。** 旧接口 `x/player/v2` 会返回**别的视频**的字幕——对一条无字幕的 MV 连测 4 次，拿到 4 段完全无关的内容。这种错用户看不出来，只会觉得字幕莫名其妙，所以宁可报"没有字幕"也不给错数据。
 
 **内置数据自洽校验。** 拿到字幕后会检查末条时间戳贴不贴合视频时长。不贴合就告警——这是防"拿到错误数据"的最后一道闸。
+
+## 实现细节（改代码前必读）
+
+**只用 `x/player/wbi/v2` 拿字幕，绝不回退到 `x/player/v2`。** 老接口会返回**别的视频**的字幕——对一条无字幕的 MV 连测 4 次，拿到 4 段完全无关的内容。用户看不出来，只会觉得字幕莫名其妙。所以宁可报「没有字幕」，也不静默给出错数据。
+
+**wbi 签名**：`w_rid` = md5(排序后 query + mixin)，混淆表要完整。
+
+**字幕接口缺凭据时不抛错**，而是正常返回并带 `need_login_subtitle`。判断「要不要扫码」得看 `noSubtitleReason === 'need-login'`，不是 catch 异常。
+
+**`whoami()` 必须走带凭据的 `getJson()`。** 手拼 headers 不带 cookie 永远返回 null——这个 bug 曾让「已登录」守卫失效。
+
+**`getSetCookie()` 在部分 Node 构建上对 fetch 响应不可用**，`get('set-cookie')` 可能返回数组。两种都要兼容。
+
+**字幕 CDN 的 `auth_key` 有时效**（几小时），别存下来当永久地址；`--list` 的输出每次都变（auth_key 是时间签名），别拿它做逐字节比对。
+
+**临时凭据别写 `/tmp`。** 二维码的 `qrcode_key` 能换到登录 cookie，谁先轮询谁拿到账号；二维码图片扫一下就能登录。`/tmp` 全局可读、默认 644，写在那儿等于晾给别人看。现在放 `~/.config/bili/` 下并设 `0600`。
+
+### 读浏览器 cookie 库的五个反直觉点
+
+1. **Chromium 密文前缀是 `v11`。** 这标记以前专指 Windows App-Bound，但 Linux 上仍是标准方案，别以为要特殊处理。
+2. **明文前 32 字节是 `SHA256(host_key)`**，不是 cookie 值的一部分。不去掉会多 32 字节。
+3. **填充是 PKCS7。** 不去掉末尾会多几个字节，nav 接口报「连不上」，很难查。
+4. **用 `file:...?mode=ro`，不要用 `?immutable=1`。** `immutable=1` 声称「文件不会变」于是跳过 WAL，**静默**读到过期 cookie——刚登录完拿到旧值，最难查。
+5. **WAL 模式的库必须先复制再读。** SQLite 打开 WAL 库时要在同目录建 `-shm`(32KB) 和 `-wal`，**只读模式也照建**（官方文档承认只读 WAL 库需可写目录）。浏览器运行时这俩文件本就在，直读看不出问题；浏览器干净退出后它们被删了，我们再直读就会凭空留下两个文件——等于偷偷写了用户的浏览器目录。代码靠读文件头第 18 字节（2 = WAL）判断，WAL 一律复制到 `mkdtemp` 再读，约 45ms。Chrome 是传统回滚日志（不是 WAL），直读无副作用，走快路径。
+
+**域名过滤不能只靠 SQL 的 `like '%bilibili%'`**，它会放过 `bilibili.com.evil.com`。取到值后还要按标签边界判一遍，只认 `bilibili.com` / `bilibili.cn` 及其子域。
+
+**Firefox 的 profile 在 `~/.config/mozilla/`，不是 `~/.mozilla/`**（XDG 布局），且目录名随机，要解析 `profiles.ini` 的 `Default=`。
+
+**读 cookie 库需要 Node ≥ 22.5（内置 `node:sqlite`）或系统装有 `sqlite3` 命令。** 都不满足时这一级自动跳过，其余功能不受影响。
 
 ## 开发
 
